@@ -11,7 +11,7 @@ import { join } from 'path';
 import { MessageModule } from './message/message.module';
 import { JwtManager } from './auth/jwt/jwt.manager';
 import { TicketModule } from './ticket/ticket.module';
-import { RedisModule, RedisModuleOptions } from '@liaoliaots/nestjs-redis';
+//import { RedisModule, RedisModuleOptions } from '@liaoliaots/nestjs-redis';
 
 @Module({
     imports: [
@@ -23,12 +23,12 @@ import { RedisModule, RedisModuleOptions } from '@liaoliaots/nestjs-redis';
         ConfigModule.forRoot({
             envFilePath: `.${process.env.NODE_ENV}.env`
         }),
-        MongooseModule.forRoot(process.env.MONGO_URL),
+        MongooseModule.forRoot('mongodb://localhost:27017'/*rocess.env.MONGO_URL*/),
         UserModule,
-        RoomGatewayModule,
-        MessageGatewayModule,
+       // RoomGatewayModule,
+      // MessageGatewayModule,
         RoomModule,
-        MessageModule,
+       MessageModule,
         TicketModule
     ],
     controllers: [],

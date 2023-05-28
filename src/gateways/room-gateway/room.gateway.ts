@@ -21,7 +21,8 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 await this.redis.connect();
             })();
             this.redis.on('error', err => console.log('Redis Client Error', err));
-            this.redis.on('connect', () => console.log('Redis Client Connected'));
+            this.redis.on('connect', () => {console.log('Redis Client Connected');});
+            
         }
 
     @WebSocketServer() 
@@ -31,6 +32,7 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
         console.log(`Клиент ${socket.id} был подключен`);
         
         await this.redis.set(socket.id, "");  
+        
     }
 
     async handleDisconnect(@ConnectedSocket() socket: Socket) {   
@@ -51,15 +53,15 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             stop();
         }) as User;
-
+console.log("ON JOINTOQUEUE: ", dto, dto.gender);
         let queue: Queue = {
             socketId: socket.id,
             userId: dto.userId,
-            gender: dto.gender,
-            country: dto.country,
+            gender: 'male',//dto.gender,
+            country: 171, //dto.country,
             isBusy: false
         };
-
+console.log("Queue: ", JSON.stringify(queue));
         await this.redis.set(queue.socketId, JSON.stringify(queue));
 
         socket.emit("onJoinToQueue", {
@@ -71,14 +73,38 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @SubscribeMessage('findRoom')
     async findNewRoom(@MessageBody() dto: FindNewRoomDto, @ConnectedSocket() socket: Socket) {
         let queuesKey = await this.redis.keys("*");
+console.log("onfindroom", queuesKey);
 
         let queues: Queue[] = [];
-
+/*
         queuesKey.forEach(async queueKey => {
-            let queue: Queue = JSON.parse(await this.redis.get(queueKey)) as Queue;
-            queues.push(queue);
+			try{
+				
+				
+			let b: any = await this.redis.get(queueKey);
+			if(!b) return;
+			console.log("on findRoom: ", b);
+			console.log("onfindRoom dto: ", dto);
+           var queue: Queue = JSON.parse(b) as Queue;
+           queues.push(queue);
+		}catch(e){
+			console.log(e);
+		//	return;
+		}finally{
+           // queues.push(queue);
+		}
         });
-
+        */
+        for(let queueKey of queuesKey){
+			let b: any = await this.redis.get(queueKey);
+			if(b){
+			console.log("on findRoom: ", b);
+			console.log("onfindRoom dto: ", dto);
+           let queue: Queue = JSON.parse(b) as Queue;
+           queues.push(queue);
+	   }
+		} 
+console.log("*** QUEUES ***: ", queues)
         let partnerQueue = queues.find(queue => queue.country === dto.country 
             //  && queue.gender === dto.gender 
             //  && queue.socketId !== socket.id
@@ -93,7 +119,11 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
           if (!partnerQueue) {
               partnerQueue = queues.find(queue => !queue.isBusy /*&& queue.socketId !== socket.id*/);
           }
-          
+          if (!partnerQueue){
+			  console.log("*** NOT FOUND ***");
+			   return;
+		   }
+	   
           let myQueue = queues.find(queue => queue.socketId === socket.id);
   
           let roomId = await this.gatewayService.create([dto.userId, partnerQueue.userId]).catch((e) => {
@@ -109,12 +139,12 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
           myQueue.isBusy = true;
   
           const partnerSocket = this.server.sockets.sockets.get(partnerQueue.socketId);
-          partnerSocket.join(roomId);
+         if(partnerSocket) partnerSocket.join(roomId);
           partnerQueue.isBusy = true;
           
           this.server.to(partnerQueue.socketId).emit("waitOffer", {from: socket.id});
           this.server.to(socket.id).emit("makeOffer", {to: partnerQueue.socketId});
-      //	this.server.to(partnerQueue.socketId).emit("waitOffer", {from: socket.id, to: partnerQueue.socketId});
+     
           this.server.to(roomId).emit('onFindRoom', {
               roomId,
               socketId:socket.id,
